@@ -34,7 +34,10 @@ def scrape_jobs_task(
         )
         saved = _save_jobs(results, query)
         if companies:
-            _cleanup_old_jobs(companies)
+            try:
+                _cleanup_old_jobs(companies)
+            except Exception as e:
+                print(f"Cleanup warning (non-fatal): {e}")
         return {"scraped": len(results), "new": saved, "duplicates": len(results) - saved, "query": query}
     finally:
         loop.close()
