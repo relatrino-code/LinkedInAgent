@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, RefreshCw, ExternalLink, Send } from 'lucide-react';
+import { Plus, RefreshCw, ExternalLink, Send, Bookmark } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { jobsApi, applicationsApi } from '../services/api';
+import { jobsApi, applicationsApi, userApi } from '../services/api';
 import FilterBar from '../components/FilterBar';
 import StatusBadge from '../components/StatusBadge';
 
@@ -15,6 +15,11 @@ export default function Jobs() {
   const [showScrape, setShowScrape] = useState(false);
   const [scrapeQuery, setScrapeQuery] = useState('');
   const [scrapeLocation, setScrapeLocation] = useState('');
+
+  const { data: savedQueries } = useQuery({
+    queryKey: ['search-queries'],
+    queryFn: userApi.getSearchQueries,
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['jobs', page, search, sourceFilter, statusFilter],
@@ -94,6 +99,31 @@ export default function Jobs() {
           },
         ]}
       />
+
+      {savedQueries && savedQueries.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+          <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm text-gray-700">
+            <Bookmark size={14} /> Saved Search Queries
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {savedQueries.map(q => (
+              <button
+                key={q.id}
+                onClick={() => {
+                  setScrapeQuery(q.job_titles.split(',')[0].trim());
+                  setScrapeLocation(q.locations || '');
+                  setShowScrape(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium hover:bg-blue-100"
+              >
+                <Plus size={12} />
+                {q.job_titles.split(',')[0].trim()}
+                {q.locations && <span className="text-blue-400">· {q.locations}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showScrape && (
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
