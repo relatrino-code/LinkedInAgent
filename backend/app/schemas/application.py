@@ -53,7 +53,7 @@ class ApplicationUpdate(BaseModel):
 
 
 class EmailSendRequest(BaseModel):
-    application_id: str
+    application_id: Optional[str] = None
     subject: str
     body: str
     cc: Optional[str] = None
