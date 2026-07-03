@@ -12,6 +12,8 @@ class ScraperService:
 
     def build_query(self, title: str, companies: str = "", keywords: str = "", experience_level: str = "") -> str:
         parts = [title]
+        if companies:
+            parts.append(companies.replace(",", " "))
         if keywords:
             parts.append(keywords)
         if experience_level:
@@ -40,6 +42,10 @@ class ScraperService:
                     all_jobs.extend(jobs)
                 except Exception:
                     continue
+
+        if companies:
+            company_names = {c.strip().lower() for c in companies.split(",") if c.strip()}
+            all_jobs = [j for j in all_jobs if j.company and j.company.strip().lower() in company_names]
 
         return all_jobs
 

@@ -69,7 +69,7 @@ flowchart LR
     GM2 -.->|"hourly check"| T
 
     %% edge styling: thicker, darker arrows
-    linkStyle default stroke:#1e293b,stroke-width:3px,color:#0f172a
+    linkStyle default stroke:#000,stroke-width:3px
 ```
 
 ### Flow Summary
