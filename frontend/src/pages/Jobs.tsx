@@ -122,11 +122,15 @@ export default function Jobs() {
                   });
                   setShowScrape(true);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium hover:bg-blue-100"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium hover:bg-blue-100 whitespace-nowrap"
               >
                 <Plus size={12} />
                 {q.job_titles.split(',')[0].trim()}
+                {q.companies && <span className="text-gray-400">· {q.companies}</span>}
                 {q.locations && <span className="text-blue-400">· {q.locations}</span>}
+                {q.keywords && <span className="text-green-500">· kw:{q.keywords}</span>}
+                {q.experience_level && <span className="text-purple-500">· {q.experience_level}</span>}
+                {q.sources && <span className="text-orange-500">· {q.sources}</span>}
               </button>
             ))}
           </div>
