@@ -82,7 +82,10 @@ async def get_application(app_id: str, db: AsyncSession = Depends(get_db)):
     app = result.unique().scalar_one_or_none()
     if not app:
         raise HTTPException(404, "Application not found")
-    return app
+    out = ApplicationOut.model_validate(app).model_dump()
+    out["job"] = {"title": app.job.title, "company": app.job.company} if app.job else None
+    out["email_threads"] = [EmailThreadOut.model_validate(t).model_dump() for t in (app.email_threads or [])]
+    return out
 
 
 @router.post("", response_model=ApplicationOut)
