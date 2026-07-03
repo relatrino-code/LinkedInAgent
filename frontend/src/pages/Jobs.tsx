@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, RefreshCw, ExternalLink, Send, Bookmark } from 'lucide-react';
+import { Plus, RefreshCw, ExternalLink, Send, Bookmark, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { jobsApi, applicationsApi, userApi } from '../services/api';
 import FilterBar from '../components/FilterBar';
@@ -16,6 +16,7 @@ export default function Jobs() {
   const [search, setSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [companyFilter, setCompanyFilter] = useState('');
   const [showScrape, setShowScrape] = useState(false);
   const [form, setForm] = useState(initialScrape);
 
@@ -25,13 +26,14 @@ export default function Jobs() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['jobs', page, search, sourceFilter, statusFilter],
+    queryKey: ['jobs', page, search, sourceFilter, statusFilter, companyFilter],
     queryFn: () => jobsApi.list({
       page,
       page_size: 20,
       search: search || undefined,
       source: sourceFilter || undefined,
       status: statusFilter || undefined,
+      company: companyFilter || undefined,
     }),
   });
 
@@ -57,6 +59,9 @@ export default function Jobs() {
     },
     onError: (err: any) => toast.error(err?.message || 'Failed'),
   });
+
+  const activeFilters: string[] = [];
+  if (companyFilter) activeFilters.push(`Company: ${companyFilter}`);
 
   return (
     <div>
@@ -102,6 +107,17 @@ export default function Jobs() {
         ]}
       />
 
+      {activeFilters.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {activeFilters.map(f => (
+            <span className="flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
+              {f}
+              <button onClick={() => setCompanyFilter('')}><X size={12} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+
       {savedQueries && savedQueries.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
           <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm text-gray-700">
@@ -120,6 +136,7 @@ export default function Jobs() {
                     keywords: q.keywords || '',
                     sources: q.sources || 'linkedin,indeed',
                   });
+                  setCompanyFilter(q.companies || '');
                   setShowScrape(true);
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium hover:bg-blue-100 whitespace-nowrap"
