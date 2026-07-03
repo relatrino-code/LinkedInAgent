@@ -148,8 +148,8 @@ SMTP_PASSWORD=your-app-password
 APOLLO_API_KEY=your-api-key           # optional
 
 BASE_URL=http://localhost:8000
-SCRAPE_INTERVAL_HOURS=6
-EMAIL_CHECK_INTERVAL_MINUTES=15
+SCRAPE_INTERVAL_HOURS=10
+EMAIL_CHECK_INTERVAL_MINUTES=60
 ```
 
 ### 2. Start infrastructure
@@ -172,16 +172,23 @@ uvicorn app.main:app --reload --port 8000
 
 API docs are available at `http://localhost:8000/docs`.
 
-### 4. Start Celery workers (in separate terminals)
+### 4. Start Celery (background workers — two parts)
+
+Celery has **two components** that run together in separate terminals:
+
+**Worker** — processes actual tasks (scraping, sending emails, checking inbox). Required for everything to work.
 
 ```bash
 cd backend
 source .venv/bin/activate
+celery -A app.tasks.celery_app worker --loglevel=info --pool solo
+```
 
-# Worker (processes tasks)
-celery -A app.tasks.celery_app worker --loglevel=info
+**Beat** — the scheduler that triggers tasks automatically on a timer (e.g., re-scrape every 10 hours, check email replies every hour). Optional — without it, you must trigger scrapes manually from the UI.
 
-# Beat (scheduled tasks — optional)
+```bash
+cd backend
+source .venv/bin/activate
 celery -A app.tasks.celery_app beat --loglevel=info
 ```
 
@@ -195,15 +202,49 @@ npm run dev
 
 Open `http://localhost:5173`.
 
-## Usage
+## End-to-End Workflow
 
-1. **Settings page** — Fill in your profile (name, email, skills, cover letter template) and upload your CV
-2. **Add search queries** — Enter job titles, locations, companies you're interested in
-3. **Scrape jobs** — Click "Scrape Jobs" to find listings from LinkedIn and Indeed
-4. **Create applications** — From scraped jobs, create applications to start the outreach process
-5. **Find emails** — The system will attempt to find recruiter emails via Apollo.io or web scraping
-6. **Send emails** — Write personalized emails and send them with your CV attached
-7. **Track replies** — Incoming replies are detected automatically; respond directly from the UI
+Here's the complete flow from setup to getting replies:
+
+### Phase 1: Setup (Settings page)
+
+1. Fill in **your profile** — name, email, skills, LinkedIn URL
+2. Upload your **resume/CV** (PDF)
+3. Write a **cover letter template** (use `{{company}}` and `{{role}}` as placeholders)
+4. Add **search queries** — job titles, locations, companies you're targeting
+
+### Phase 2: Discover Jobs (Jobs page)
+
+1. Click **"Scrape Jobs"** — enter a title (e.g., "Software Engineer") and location ("Bangalore")
+2. The scraper searches LinkedIn and Indeed, saves matching jobs to the database
+3. Beat will **auto-scrape** these queries every 10 hours if running
+4. Browse the list — filter by source, status, or search keywords
+
+### Phase 3: Apply (Jobs → Applications page)
+
+1. On any job card, click **"Apply"** — creates an application record
+2. Go to **Applications** tab to see all your applications
+3. Click **"View"** on an application to open it
+
+### Phase 4: Find Recruiter Emails (Application Detail page)
+
+1. Click **"Find Emails"** — searches Apollo.io API (or scrapes the company website) for recruiter/hiring manager emails
+2. The best match is saved as the contact for this application
+
+### Phase 5: Send Outreach (Application Detail page)
+
+1. Write a **subject line** and **email body** (paste your cover letter)
+2. Your resume is automatically attached
+3. Click **"Send Email"** — it goes out via your Gmail/Outlook SMTP
+4. The email includes a **tracking pixel** (knows when it's opened) and **tracked links**
+
+### Phase 6: Track & Reply
+
+1. Celery checks your inbox **every hour** for replies
+2. When someone replies, the status changes to **"Replied"**
+3. Open the application — the reply appears in the **Email Thread** section
+4. Click **"Reply"** on any incoming message to respond directly from the UI
+5. Follow-ups are tracked — you can see how many times you've contacted them
 
 ## Deploying with Docker
 
