@@ -33,6 +33,8 @@ def scrape_jobs_task(
             )
         )
         saved = _save_jobs(results, query)
+        if companies:
+            _cleanup_old_jobs(companies)
         return {"scraped": len(results), "new": saved, "duplicates": len(results) - saved, "query": query}
     finally:
         loop.close()
@@ -75,5 +77,27 @@ def _save_jobs(scraped_jobs: list, query: str) -> int:
 
         session.commit()
         return saved
+    finally:
+        session.close()
+
+
+def _cleanup_old_jobs(companies: str):
+    company_list = [c.strip() for c in companies.split(",") if c.strip()]
+    if not company_list:
+        return
+    session = sync_session_factory()
+    try:
+        applied_job_ids = set(
+            session.execute(select(JobApplication.job_id)).scalars().all()
+        )
+        all_jobs = session.execute(select(Job)).scalars().all()
+        for j in all_jobs:
+            if j.id in applied_job_ids:
+                continue
+            if not j.company:
+                session.delete(j)
+            elif not any(c.lower() in j.company.lower() for c in company_list):
+                session.delete(j)
+        session.commit()
     finally:
         session.close()
