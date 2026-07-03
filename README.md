@@ -13,8 +13,64 @@ Automated job discovery, recruiter outreach, and application tracking system.
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    subgraph User["👤 You"]
+        UI["React Dashboard<br/>localhost:5173"]
+    end
+
+    subgraph Backend["🐍 Backend (FastAPI)"]
+        API["REST API<br/>port 8000"]
+        DB[("PostgreSQL<br/>Jobs, Applications,<br/>Email Threads")]
+    end
+
+    subgraph Workers["⚙️ Celery Workers"]
+        Scraper["🕸️ Job Scraper<br/>LinkedIn, Indeed,<br/>Career Pages"]
+        EmailFinder["📧 Email Finder<br/>Apollo.io API +<br/>Web Scraping"]
+        EmailSender["📨 Email Sender<br/>SMTP (Gmail/Outlook)<br/>+ Tracking Pixels"]
+        EmailTracker["📬 Email Tracker<br/>IMAP - Checks for<br/>Replies Every 15min"]
+        Beat["⏰ Scheduler<br/>Auto-Scrape Every<br/>10 Hours"]
+    end
+
+    subgraph Infra["🗄️ Infrastructure"]
+        Redis[("Redis<br/>Task Queue")]
+        SMTP[("Gmail/Outlook<br/>SMTP + IMAP")]
+        Apollo[("Apollo.io API<br/>(Optional)")]
+    end
+
+    UI <--> API
+    API <--> DB
+    API --> Redis
+
+    Redis --> Scraper
+    Redis --> EmailFinder
+    Redis --> EmailSender
+    Redis --> EmailTracker
+    Beat --> Redis
+
+    Scraper -->|"1. Finds jobs"| DB
+    EmailFinder -->|"2. Finds recruiter emails"| DB
+    EmailSender -->|"3. Sends email + CV"| SMTP
+    EmailTracker -->|"4. Checks inbox"| SMTP
+    EmailTracker -->|"5. Stores replies"| DB
+    Apollo --> EmailFinder
+
+    style User fill:#e8f4f8,stroke:#333
+    style Backend fill:#f0f0f0,stroke:#333
+    style Workers fill:#fff3e0,stroke:#333
+    style Infra fill:#f3e5f5,stroke:#333
 ```
-LinkedInAgent/
+
+### Flow Summary
+
+1. **You** set search preferences in the Dashboard
+2. **Scraper** finds matching jobs from LinkedIn/Indeed
+3. **Email Finder** hunts for recruiter emails (Apollo.io → web scrape)
+4. **Email Sender** sends your pitch + CV via Gmail/Outlook
+5. **Email Tracker** polls your inbox for replies
+6. **You** get notified and can reply directly from the UI
+
+### File Structure
 ├── backend/                     # FastAPI + Celery
 │   ├── app/
 │   │   ├── api/                 # REST endpoints
@@ -40,8 +96,33 @@ LinkedInAgent/
 - Python 3.12+
 - Node.js 20+
 - Docker (for PostgreSQL + Redis) or run them locally
-- A Gmail/Outlook account with an [app password](https://support.google.com/accounts/answer/185833) (for SMTP)
-- (Optional) [Apollo.io API key](https://apollo.io/api) for recruiter email discovery
+
+## Getting Credentials
+
+### SMTP (Gmail)
+
+1. Enable **2-Step Verification** at https://myaccount.google.com/security
+2. Generate an **App Password** at https://myaccount.google.com/apppasswords
+3. Select "Mail" and your device → copy the 16-character password (no spaces)
+
+### SMTP (Outlook)
+
+1. Go to https://account.microsoft.com/security → "Advanced security options"
+2. Enable two-factor authentication, then create an app password
+
+### Apollo.io API Key (Optional)
+
+1. Sign up at https://apollo.io
+2. Go to Settings → API Key → "Create API Key"
+3. Without this, email finding falls back to web scraping (lower accuracy)
+
+### SECRET_KEY
+
+Generate one with:
+
+```bash
+openssl rand -hex 32
+```
 
 ## Quick Start
 
@@ -83,7 +164,8 @@ Or if you have PostgreSQL/Redis running locally, just make sure the URLs in `.en
 
 ```bash
 cd backend
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
@@ -93,7 +175,8 @@ API docs are available at `http://localhost:8000/docs`.
 ### 4. Start Celery workers (in separate terminals)
 
 ```bash
-cd backend && source .venv/bin/activate
+cd backend
+source .venv/bin/activate
 
 # Worker (processes tasks)
 celery -A app.tasks.celery_app worker --loglevel=info
