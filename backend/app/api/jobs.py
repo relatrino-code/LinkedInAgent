@@ -33,7 +33,11 @@ async def list_jobs(
     if title:
         query = query.where(Job.title.ilike(f"%{title}%"))
     if company:
-        query = query.where(Job.company.ilike(f"%{company}%"))
+        company_list = [c.strip() for c in company.split(",") if c.strip()]
+        if company_list:
+            query = query.where(
+                or_(*[Job.company.ilike(f"%{c}%") for c in company_list])
+            )
     if location:
         query = query.where(Job.location.ilike(f"%{location}%"))
     if source:
