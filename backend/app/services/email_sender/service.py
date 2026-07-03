@@ -5,7 +5,6 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 from typing import Optional
-import aiofiles
 import os
 import uuid
 
@@ -19,7 +18,7 @@ class EmailSenderService:
         self.smtp_user = settings.SMTP_USER
         self.smtp_password = settings.SMTP_PASSWORD
 
-    async def send_email(
+    def send_email_sync(
         self,
         to_email: str,
         subject: str,
@@ -46,10 +45,7 @@ class EmailSenderService:
                 part.set_payload(f.read())
                 encoders.encode_base64(part)
                 filename = os.path.basename(attachment_path)
-                part.add_header(
-                    "Content-Disposition",
-                    f"attachment; filename={filename}",
-                )
+                part.add_header("Content-Disposition", f"attachment; filename={filename}")
                 msg.attach(part)
 
         message_id = f"<{uuid.uuid4().hex}@{self.smtp_host}>"
@@ -65,14 +61,12 @@ class EmailSenderService:
                     recipients.append(cc)
                 server.sendmail(self.smtp_user, recipients, msg.as_string())
 
-            return {
-                "success": True,
-                "message_id": message_id,
-                "to": to_email,
-                "subject": subject,
-            }
+            return {"success": True, "message_id": message_id, "to": to_email, "subject": subject}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    async def send_email(self, *args, **kwargs) -> dict:
+        return self.send_email_sync(*args, **kwargs)
 
     async def send_email_with_tracking(
         self,
@@ -97,7 +91,7 @@ class EmailSenderService:
         link_tracking = f'{settings.BASE_URL}/api/track/click/{application_id}?url='
         tracked_body = tracked_body.replace('href="', f'href="{link_tracking}')
 
-        return await self.send_email(to_email, subject, tracked_body, cc, attachment_path, from_name)
+        return self.send_email_sync(to_email, subject, tracked_body, cc, attachment_path, from_name)
 
 
 email_sender_service = EmailSenderService()

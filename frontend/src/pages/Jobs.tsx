@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { Plus, RefreshCw, ExternalLink } from 'lucide-react';
+import { Plus, RefreshCw, ExternalLink, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { jobsApi } from '../services/api';
+import { jobsApi, applicationsApi } from '../services/api';
 import FilterBar from '../components/FilterBar';
 import StatusBadge from '../components/StatusBadge';
 
@@ -41,6 +40,15 @@ export default function Jobs() {
       }, 8000);
     },
     onError: (err: any) => toast.error(err?.message || 'Scrape failed'),
+  });
+
+  const createAppMutation = useMutation({
+    mutationFn: (jobId: string) => applicationsApi.create({ job_id: jobId }),
+    onSuccess: () => {
+      toast.success('Application created! Go to Applications tab.');
+      queryClient.invalidateQueries({ queryKey: ['app-stats'] });
+    },
+    onError: (err: any) => toast.error(err?.message || 'Failed'),
   });
 
   return (
@@ -113,10 +121,7 @@ export default function Jobs() {
               {scrapeMutation.isPending ? <RefreshCw size={16} className="animate-spin" /> : <RefreshCw size={16} />}
               Scrape
             </button>
-            <button
-              onClick={() => setShowScrape(false)}
-              className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
-            >
+            <button onClick={() => setShowScrape(false)} className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
               Cancel
             </button>
           </div>
@@ -131,24 +136,32 @@ export default function Jobs() {
             {data.items.map(job => (
               <div key={job.id} className="p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-medium text-gray-900">{job.title}</h3>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-gray-900 truncate">{job.title}</h3>
                     <p className="text-sm text-gray-600">{job.company}</p>
                     {job.location && <p className="text-sm text-gray-400">{job.location}</p>}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0 ml-4">
                     <StatusBadge status={job.source} />
                     <StatusBadge status={job.status} />
                   </div>
                 </div>
-                <div className="flex items-center gap-3 mt-2">
+                <div className="flex items-center gap-3 mt-3">
                   {job.salary_range && <span className="text-xs text-gray-500">{job.salary_range}</span>}
                   {job.required_experience && <span className="text-xs text-gray-500">{job.required_experience}</span>}
+                  <div className="flex-1" />
                   {job.job_url && (
                     <a href={job.job_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                      <ExternalLink size={12} /> View Job
+                      <ExternalLink size={12} /> View
                     </a>
                   )}
+                  <button
+                    onClick={() => createAppMutation.mutate(job.id)}
+                    disabled={createAppMutation.isPending}
+                    className="flex items-center gap-1 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    <Send size={12} /> Apply
+                  </button>
                 </div>
               </div>
             ))}
@@ -166,20 +179,8 @@ export default function Jobs() {
             Showing {(data.page - 1) * data.page_size + 1}-{Math.min(data.page * data.page_size, data.total)} of {data.total}
           </p>
           <div className="flex gap-2">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-3 py-1 border rounded text-sm disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setPage(p => p + 1)}
-              disabled={page * data.page_size >= data.total}
-              className="px-3 py-1 border rounded text-sm disabled:opacity-50"
-            >
-              Next
-            </button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Previous</button>
+            <button onClick={() => setPage(p => p + 1)} disabled={page * data.page_size >= data.total} className="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
           </div>
         </div>
       )}

@@ -1,10 +1,12 @@
 from app.tasks.celery_app import celery_app
 from app.services.email_sender.service import email_sender_service
 from app.services.email_tracker.service import email_tracker_service
-from app.database import async_session_factory
+from app.database import sync_session_factory
+from app.models.user import UserProfile
 from app.models.application import JobApplication, EmailThread, EmailStatus, ApplicationStatus
 from datetime import datetime
-from sqlalchemy import select, or_
+import uuid
+from sqlalchemy import select
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -15,46 +17,31 @@ def send_application_email_task(
     body: str,
     attachment_path: str | None = None,
 ):
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        result = loop.run_until_complete(_send_email(application_id, subject, body, attachment_path))
-        return result
-    finally:
-        loop.close()
+    return _send_email(application_id, subject, body, attachment_path)
 
 
 @celery_app.task(bind=True)
 def check_email_replies_task(self):
-    import asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        result = loop.run_until_complete(_check_replies())
-        return {"new_replies": result}
-    finally:
-        loop.close()
+    return {"new_replies": _check_replies()}
 
 
-async def _send_email(
+def _send_email(
     application_id: str,
     subject: str,
     body: str,
     attachment_path: str | None = None,
 ) -> dict:
-    async with async_session_factory() as session:
-        app = await session.get(JobApplication, application_id)
+    session = sync_session_factory()
+    try:
+        app = session.get(JobApplication, application_id)
         if not app or not app.contact_email:
             return {"success": False, "error": "Application or email not found"}
 
-        result = await email_sender_service.send_email_with_tracking(
+        result = email_sender_service.send_email_sync(
             to_email=app.contact_email,
             subject=subject,
             body=body,
-            application_id=application_id,
             attachment_path=attachment_path,
-            from_name=app.contact_name or None,
         )
 
         if result["success"]:
@@ -66,6 +53,7 @@ async def _send_email(
             app.last_contact_at = datetime.utcnow()
 
             thread = EmailThread(
+                id=str(uuid.uuid4()),
                 application_id=application_id,
                 message_id=result.get("message_id"),
                 from_email=app.contact_email or "",
@@ -76,49 +64,54 @@ async def _send_email(
                 sent_at=datetime.utcnow(),
             )
             session.add(thread)
-            await session.commit()
+            session.commit()
 
         return result
+    finally:
+        session.close()
 
 
-async def _check_replies() -> int:
-    async with async_session_factory() as session:
-        result = await session.execute(
+def _check_replies() -> int:
+    session = sync_session_factory()
+    try:
+        apps = session.execute(
             select(JobApplication).where(
                 JobApplication.email_status.in_([EmailStatus.SENT, EmailStatus.DELIVERED, EmailStatus.OPENED])
             )
-        )
-        active_apps = result.scalars().all()
-        if not active_apps:
+        ).scalars().all()
+        if not apps:
             return 0
 
-        replies = await email_tracker_service.check_for_replies()
+        replies = email_tracker_service.check_for_replies_sync()
 
         new_count = 0
         for reply in replies:
-            for app in active_apps:
+            for app in apps:
                 if reply.get("in_reply_to") and app.email_subject:
                     if reply["in_reply_to"] in (app.email_subject or ""):
-                        await _save_reply(session, app.id, reply)
+                        _save_reply(session, app.id, reply)
                         new_count += 1
                         break
                 else:
                     from_addr = email_tracker_service.extract_email_address(reply.get("from_email", ""))
                     if from_addr and from_addr == app.contact_email:
-                        await _save_reply(session, app.id, reply)
+                        _save_reply(session, app.id, reply)
                         new_count += 1
                         break
 
-        await session.commit()
+        session.commit()
         return new_count
+    finally:
+        session.close()
 
 
-async def _save_reply(session, application_id: str, reply_data: dict):
-    app = await session.get(JobApplication, application_id)
+def _save_reply(session, application_id: str, reply_data: dict):
+    app = session.get(JobApplication, application_id)
     if not app:
         return
 
     thread = EmailThread(
+        id=str(uuid.uuid4()),
         application_id=application_id,
         message_id=reply_data.get("message_id"),
         from_email=reply_data.get("from_email", ""),

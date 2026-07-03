@@ -14,6 +14,45 @@ class EmailTrackerService:
         self.smtp_user = settings.SMTP_USER
         self.smtp_password = settings.SMTP_PASSWORD
 
+    def check_for_replies_sync(self, since_date: Optional[datetime] = None) -> list[dict]:
+        if not self.smtp_user or not self.smtp_password:
+            return []
+
+        replies = []
+        try:
+            mail = imaplib.IMAP4_SSL(self.smtp_host)
+            mail.login(self.smtp_user, self.smtp_password)
+            mail.select("INBOX")
+
+            search_criteria = "UNSEEN"
+            if since_date:
+                date_str = since_date.strftime("%d-%b-%Y")
+                search_criteria = f'(SINCE "{date_str}")'
+
+            status, messages = mail.search(None, search_criteria)
+            if status != "OK" or not messages[0]:
+                mail.logout()
+                return []
+
+            for num in messages[0].split():
+                status, msg_data = mail.fetch(num, "(RFC822)")
+                if status != "OK":
+                    continue
+
+                for response_part in msg_data:
+                    if isinstance(response_part, tuple):
+                        msg = email.message_from_bytes(response_part[1])
+                        parsed = self._parse_message(msg)
+                        if parsed:
+                            replies.append(parsed)
+                            mail.store(num, "+FLAGS", "\\Seen")
+
+            mail.logout()
+        except Exception:
+            pass
+
+        return replies
+
     async def check_for_replies(self, since_date: Optional[datetime] = None) -> list[dict]:
         if not self.smtp_user or not self.smtp_password:
             return []
