@@ -14,79 +14,62 @@ Automated job discovery, recruiter outreach, and application tracking system.
 ## Architecture
 
 ```mermaid
-flowchart TB
-    classDef user fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
-    classDef backend fill:#f3f4f6,stroke:#6b7280,stroke-width:2px
-    classDef worker fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-    classDef infra fill:#ede9fe,stroke:#8b5cf6,stroke-width:2px
-    classDef db fill:#d1fae5,stroke:#10b981,stroke-width:2px
-    classDef ext fill:#fce7f3,stroke:#ec4899,stroke-width:2px
+flowchart LR
+    %% darker, thicker strokes for visibility
+    classDef box fill:#fff,stroke:#1e293b,stroke-width:2.5px,color:#0f172a,font-weight:bold
 
-    subgraph User[" "]
-        direction LR
-        UI(("👤 You<br/>React Dashboard"))
-    end
-
-    subgraph Backend[" "]
-        API["FastAPI<br/>port 8000"]
-    end
-
-    subgraph Workers[" "]
+    subgraph Setup["PHASE 1: SETUP"]
         direction TB
-        Scraper["Step 2: Job Scraper<br/>LinkedIn / Indeed / Career Pages"]
-        EmailFinder["Step 4: Email Finder<br/>Apollo.io / Web Scraping"]
-        EmailSender["Step 5: Email Sender<br/>SMTP + Tracking Pixels"]
-        EmailTracker["Step 6: Email Tracker<br/>IMAP - Checks Inbox"]
+        U(["👤 You (Dashboard)"]):::box
+        Q(["🔍 Saved Search Queries<br/>Title · Location · Company · etc"]):::box
+        U --> Q
     end
 
-    subgraph Storage[" "]
-        DB[("PostgreSQL<br/>Jobs · Applications · Emails")]
-        Redis[("Redis<br/>Task Queue")]
+    subgraph ScrapePhase["PHASE 2: SCRAPE"]
+        direction TB
+        S(["🕸️ Celery: Job Scraper<br/>LinkedIn + Indeed"]):::box
+        JS(["🌐 LinkedIn / Indeed"]):::box
+        DB1[("💾 PostgreSQL")]:::box
+        S <--> JS
+        S -->|"stores"| DB1
     end
 
-    subgraph External[" "]
-        SMTP[("Gmail / Outlook")]
-        Apollo(("Apollo.io API<br/>(Optional)"))
-        JobSites(("LinkedIn / Indeed"))
+    subgraph ApplyPhase["PHASE 3: APPLY"]
+        direction TB
+        A(["📝 Celery: Email Finder<br/>Apollo.io + Web Scrape"]):::box
+        AP(["🔌 Apollo.io API"]):::box
+        DB2[("💾 PostgreSQL")]:::box
+        A <--> AP
+        A -->|"saves contacts"| DB2
     end
 
-    UI <-->|"click / view"| API
-    API <-->|"read / write"| DB
-    API -->|"queue task"| Redis
+    subgraph OutreachPhase["PHASE 4: OUTREACH"]
+        direction TB
+        E(["📨 Celery: Email Sender<br/>SMTP + Tracking Pixels"]):::box
+        GM(["📧 Gmail / Outlook"]):::box
+        DB3[("💾 PostgreSQL")]:::box
+        E -->|"sends CV"| GM
+        E -->|"logs sent"| DB3
+    end
 
-    Redis --> Scraper
-    Redis --> EmailFinder
-    Redis --> EmailSender
-    Redis --> EmailTracker
+    subgraph TrackPhase["PHASE 5: TRACK & REPLY"]
+        direction TB
+        T(["📬 Celery: Email Tracker<br/>IMAP - Checks Replies"]):::box
+        GM2(["📧 Gmail / Outlook"]):::box
+        DB4[("💾 PostgreSQL")]:::box
+        R(["👤 You Reply from UI"]):::box
+        T <-->|"polls inbox"| GM2
+        T -->|"stores replies"| DB4
+        DB4 --> R
+    end
 
-    Scraper -->|"scrapes"| JobSites
-    Scraper -->|"saves jobs"| DB
-    EmailFinder -->|"queries"| Apollo
-    EmailFinder -->|"saves contacts"| DB
-    EmailSender -->|"sends email + CV"| SMTP
-    EmailSender -->|"logs sent"| DB
-    EmailTracker -->|"polls for replies"| SMTP
-    EmailTracker -->|"stores replies"| DB
+    Q -->|"auto-scrape"| S
+    DB1 --> A
+    DB2 --> E
+    GM2 -.->|"hourly check"| T
 
-    linkStyle default stroke:#94a3b8,stroke-width:1.5px
-
-    style User fill:none,stroke:none
-    style Backend fill:none,stroke:none
-    style Workers fill:none,stroke:none
-    style Storage fill:none,stroke:none
-    style External fill:none,stroke:none
-
-    style UI fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e40af
-    style API fill:#f3f4f6,stroke:#6b7280,stroke-width:2px,color:#374151
-    style Scraper fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#92400e
-    style EmailFinder fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#92400e
-    style EmailSender fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#92400e
-    style EmailTracker fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#92400e
-    style DB fill:#d1fae5,stroke:#10b981,stroke-width:2px,color:#065f46
-    style Redis fill:#d1fae5,stroke:#10b981,stroke-width:2px,color:#065f46
-    style SMTP fill:#fce7f3,stroke:#ec4899,stroke-width:2px,color:#9d174d
-    style Apollo fill:#fce7f3,stroke:#ec4899,stroke-width:2px,color:#9d174d
-    style JobSites fill:#fce7f3,stroke:#ec4899,stroke-width:2px,color:#9d174d
+    %% edge styling: thicker, darker arrows
+    linkStyle default stroke:#1e293b,stroke-width:3px,color:#0f172a
 ```
 
 ### Flow Summary
