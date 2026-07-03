@@ -31,12 +31,14 @@ export default function Jobs() {
   const scrapeMutation = useMutation({
     mutationFn: () => jobsApi.scrape(scrapeQuery, scrapeLocation),
     onSuccess: () => {
-      toast.success('Scraping started! Results will appear shortly.');
+      toast.success('Scraping started!');
       setShowScrape(false);
       setScrapeQuery('');
       setScrapeLocation('');
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      queryClient.invalidateQueries({ queryKey: ['job-stats'] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['jobs'] });
+        queryClient.invalidateQueries({ queryKey: ['job-stats'] });
+      }, 8000);
     },
     onError: (err: any) => toast.error(err?.message || 'Scrape failed'),
   });

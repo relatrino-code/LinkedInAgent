@@ -31,7 +31,7 @@ async def create_profile(data: UserProfileCreate, db: AsyncSession = Depends(get
         raise HTTPException(400, "Profile already exists. Use PUT to update.")
 
     profile = UserProfile(
-        id=uuid.uuid4(),
+        id=str(uuid.uuid4()),
         name=data.name,
         email=data.email,
         phone=data.phone,
@@ -95,7 +95,7 @@ async def create_search_query(data: SearchQueryCreate, db: AsyncSession = Depend
         raise HTTPException(404, "Create a profile first")
 
     query = SearchQuery(
-        id=uuid.uuid4(),
+        id=str(uuid.uuid4()),
         user_id=profile.id,
         job_titles=data.job_titles,
         companies=data.companies,

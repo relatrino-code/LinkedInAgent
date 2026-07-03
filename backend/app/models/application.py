@@ -35,7 +35,7 @@ class ApplicationStatus(str, enum.Enum):
 class JobApplication(Base):
     __tablename__ = "job_applications"
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=uuid.uuid4)
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
     job_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("jobs.id"), nullable=False)
     contact_name: Mapped[str | None] = mapped_column(String(255))
     contact_title: Mapped[str | None] = mapped_column(String(255))
@@ -61,7 +61,7 @@ class JobApplication(Base):
 class EmailThread(Base):
     __tablename__ = "email_threads"
 
-    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=uuid.uuid4)
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
     application_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("job_applications.id"), nullable=False)
     message_id: Mapped[str | None] = mapped_column(String(500))
     from_email: Mapped[str] = mapped_column(String(255), nullable=False)

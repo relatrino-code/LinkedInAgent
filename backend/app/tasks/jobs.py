@@ -6,7 +6,7 @@ from app.models.job import Job, JobSource, JobStatus
 from app.models.application import JobApplication, ApplicationStatus, EmailStatus
 from datetime import datetime
 import uuid
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -16,8 +16,8 @@ def scrape_jobs_task(self, query: str, location: str = "", sources: list[str] | 
     asyncio.set_event_loop(loop)
     try:
         results = loop.run_until_complete(scraper_service.search_jobs(query, location, sources))
-        loop.run_until_complete(_save_jobs(results, query))
-        return {"scraped": len(results), "query": query}
+        saved = loop.run_until_complete(_save_jobs(results, query))
+        return {"scraped": len(results), "new": saved, "duplicates": len(results) - saved, "query": query}
     finally:
         loop.close()
 
@@ -34,7 +34,8 @@ def find_emails_for_applications_task(self):
         loop.close()
 
 
-async def _save_jobs(scraped_jobs: list, query: str):
+async def _save_jobs(scraped_jobs: list, query: str) -> int:
+    saved = 0
     async with async_session_factory() as session:
         for scraped in scraped_jobs:
             existing = await session.execute(
@@ -48,7 +49,7 @@ async def _save_jobs(scraped_jobs: list, query: str):
                 continue
 
             job = Job(
-                id=uuid.uuid4(),
+                id=str(uuid.uuid4()),
                 title=scraped.title,
                 company=scraped.company,
                 company_website=scraped.company_website,
@@ -65,8 +66,10 @@ async def _save_jobs(scraped_jobs: list, query: str):
                 metadata_json=scraped.metadata,
             )
             session.add(job)
+            saved += 1
 
         await session.commit()
+        return saved
 
 
 async def _find_and_update_emails() -> int:

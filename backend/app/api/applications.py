@@ -92,7 +92,7 @@ async def create_application(data: ApplicationCreate, db: AsyncSession = Depends
         raise HTTPException(404, "Job not found")
 
     app = JobApplication(
-        id=uuid.uuid4(),
+        id=str(uuid.uuid4()),
         job_id=data.job_id,
         contact_name=data.contact_name,
         contact_title=data.contact_title,
