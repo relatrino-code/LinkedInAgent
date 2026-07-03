@@ -17,6 +17,7 @@ export const userApi = {
   },
   getSearchQueries: () => api.get<SearchQuery[]>('/user/search-queries').then(r => r.data),
   createSearchQuery: (data: Partial<SearchQuery>) => api.post<SearchQuery>('/user/search-queries', data).then(r => r.data),
+  updateSearchQuery: (id: string, data: Partial<SearchQuery>) => api.put<SearchQuery>(`/user/search-queries/${id}`, data).then(r => r.data),
   deleteSearchQuery: (id: string) => api.delete(`/user/search-queries/${id}`).then(r => r.data),
 };
 

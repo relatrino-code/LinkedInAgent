@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save, Upload, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Save, Upload, Plus, Trash2, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { userApi } from '../services/api';
+
+const emptyQuery = {
+  job_titles: '', companies: '', locations: '',
+  experience_level: '', keywords: '', sources: '',
+};
 
 export default function Settings() {
   const queryClient = useQueryClient();
@@ -15,9 +20,8 @@ export default function Settings() {
     cover_letter_template: '',
   });
 
-  const [newQuery, setNewQuery] = useState({
-    job_titles: '', companies: '', locations: '', experience_level: '', keywords: '', sources: '',
-  });
+  const [queryForm, setQueryForm] = useState(emptyQuery);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile) {
@@ -37,31 +41,33 @@ export default function Settings() {
   }, [profile]);
 
   const saveMutation = useMutation({
-    mutationFn: () => profile
-      ? userApi.updateProfile(form)
-      : userApi.createProfile(form),
-    onSuccess: () => {
-      toast.success('Profile saved!');
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-    },
+    mutationFn: () => profile ? userApi.updateProfile(form) : userApi.createProfile(form),
+    onSuccess: () => { toast.success('Profile saved!'); queryClient.invalidateQueries({ queryKey: ['profile'] }); },
     onError: () => toast.error('Failed to save profile'),
   });
 
   const createQueryMutation = useMutation({
-    mutationFn: () => userApi.createSearchQuery(newQuery),
+    mutationFn: () => userApi.createSearchQuery(queryForm),
     onSuccess: () => {
       toast.success('Search query created!');
-      setNewQuery({ job_titles: '', companies: '', locations: '', experience_level: '', keywords: '', sources: '' });
+      setQueryForm(emptyQuery);
+      queryClient.invalidateQueries({ queryKey: ['search-queries'] });
+    },
+  });
+
+  const updateQueryMutation = useMutation({
+    mutationFn: () => userApi.updateSearchQuery(editingId!, queryForm),
+    onSuccess: () => {
+      toast.success('Search query updated!');
+      setQueryForm(emptyQuery);
+      setEditingId(null);
       queryClient.invalidateQueries({ queryKey: ['search-queries'] });
     },
   });
 
   const deleteQueryMutation = useMutation({
     mutationFn: (id: string) => userApi.deleteSearchQuery(id),
-    onSuccess: () => {
-      toast.success('Query deleted');
-      queryClient.invalidateQueries({ queryKey: ['search-queries'] });
-    },
+    onSuccess: () => { toast.success('Query deleted'); queryClient.invalidateQueries({ queryKey: ['search-queries'] }); },
   });
 
   const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,9 +77,24 @@ export default function Settings() {
       await userApi.uploadResume(file);
       toast.success('Resume uploaded!');
       queryClient.invalidateQueries({ queryKey: ['profile'] });
-    } catch {
-      toast.error('Upload failed');
-    }
+    } catch { toast.error('Upload failed'); }
+  };
+
+  const startEdit = (q: any) => {
+    setQueryForm({
+      job_titles: q.job_titles || '',
+      companies: q.companies || '',
+      locations: q.locations || '',
+      experience_level: q.experience_level || '',
+      keywords: q.keywords || '',
+      sources: q.sources || '',
+    });
+    setEditingId(q.id);
+  };
+
+  const cancelEdit = () => {
+    setQueryForm(emptyQuery);
+    setEditingId(null);
   };
 
   return (
@@ -106,55 +127,67 @@ export default function Settings() {
           </div>
         </div>
 
-        <button
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending}
-          className="mt-6 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
-        >
+        <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="mt-6 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
           <Save size={14} /> {saveMutation.isPending ? 'Saving...' : 'Save Profile'}
         </button>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <h3 className="font-semibold mb-4">Search Queries</h3>
+        <h3 className="font-semibold mb-4">
+          {editingId ? 'Edit Search Query' : 'Search Queries'}
+        </h3>
         <p className="text-sm text-gray-500 mb-4">
-          These queries will be run automatically on your configured schedule.
+          {editingId
+            ? 'Update the fields below and save.'
+            : 'These queries will be run automatically on your configured schedule.'}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-          <input placeholder="Job Titles (comma separated)" value={newQuery.job_titles} onChange={e => setNewQuery(p => ({ ...p, job_titles: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-          <input placeholder="Companies (comma separated, optional)" value={newQuery.companies} onChange={e => setNewQuery(p => ({ ...p, companies: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-          <input placeholder="Locations (comma separated, optional)" value={newQuery.locations} onChange={e => setNewQuery(p => ({ ...p, locations: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-          <input placeholder="Keywords (optional)" value={newQuery.keywords} onChange={e => setNewQuery(p => ({ ...p, keywords: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-          <select value={newQuery.experience_level} onChange={e => setNewQuery(p => ({ ...p, experience_level: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-            <option value="">Experience Level</option>
-            <option value="entry">Entry</option>
-            <option value="mid">Mid</option>
-            <option value="senior">Senior</option>
-            <option value="lead">Lead / Manager</option>
-          </select>
-          <input placeholder="Sources (linkedin,indeed)" value={newQuery.sources} onChange={e => setNewQuery(p => ({ ...p, sources: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+          <input placeholder="Job Titles *" value={queryForm.job_titles} onChange={e => setQueryForm(p => ({ ...p, job_titles: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+          <input placeholder="Companies (comma separated)" value={queryForm.companies} onChange={e => setQueryForm(p => ({ ...p, companies: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+          <input placeholder="Locations (comma separated)" value={queryForm.locations} onChange={e => setQueryForm(p => ({ ...p, locations: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+          <input placeholder="Keywords" value={queryForm.keywords} onChange={e => setQueryForm(p => ({ ...p, keywords: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+          <input placeholder="Experience Level" value={queryForm.experience_level} onChange={e => setQueryForm(p => ({ ...p, experience_level: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+          <input placeholder="Sources (linkedin,indeed)" value={queryForm.sources} onChange={e => setQueryForm(p => ({ ...p, sources: e.target.value }))} className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
         </div>
 
-        <button
-          onClick={() => createQueryMutation.mutate()}
-          disabled={!newQuery.job_titles || createQueryMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
-        >
-          <Plus size={14} /> Add Search Query
-        </button>
+        <div className="flex gap-2">
+          {editingId ? (
+            <>
+              <button onClick={() => updateQueryMutation.mutate()} disabled={!queryForm.job_titles || updateQueryMutation.isPending} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+                <Save size={14} /> Update Query
+              </button>
+              <button onClick={cancelEdit} className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+            </>
+          ) : (
+            <button onClick={() => createQueryMutation.mutate()} disabled={!queryForm.job_titles || createQueryMutation.isPending} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+              <Plus size={14} /> Add Search Query
+            </button>
+          )}
+        </div>
 
         {queries?.length ? (
           <div className="mt-4 space-y-2">
             {queries.map(q => (
               <div key={q.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium">{q.job_titles}</p>
-                  {q.locations && <p className="text-xs text-gray-500">{q.locations}</p>}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{q.job_titles}</p>
+                  <div className="flex gap-2 text-xs text-gray-500">
+                    {q.locations && <span>{q.locations}</span>}
+                    {q.companies && <span>· {q.companies}</span>}
+                    {q.keywords && <span>· {q.keywords}</span>}
+                    {q.experience_level && <span>· {q.experience_level}</span>}
+                    {q.sources && <span>· {q.sources}</span>}
+                  </div>
                 </div>
-                <button onClick={() => deleteQueryMutation.mutate(q.id)} className="text-red-500 hover:text-red-700">
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                  <button onClick={() => startEdit(q)} className="text-blue-500 hover:text-blue-700">
+                    <Pencil size={14} />
+                  </button>
+                  <button onClick={() => deleteQueryMutation.mutate(q.id)} className="text-red-500 hover:text-red-700">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -164,21 +197,10 @@ export default function Settings() {
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h3 className="font-semibold mb-4">Environment Status</h3>
         <div className="space-y-2 text-sm">
-          <p className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${true ? 'bg-green-500' : 'bg-red-500'}`} />
-            Backend API
-          </p>
-          <p className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${true ? 'bg-green-500' : 'bg-red-500'}`} />
-            PostgreSQL Database
-          </p>
-          <p className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${true ? 'bg-green-500' : 'bg-red-500'}`} />
-            Redis (for Celery)
-          </p>
-          <p className="text-xs text-gray-400 mt-2">
-            Ensure all services are running via docker-compose
-          </p>
+          <p className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500" /> Backend API</p>
+          <p className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500" /> PostgreSQL Database</p>
+          <p className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-500" /> Redis (for Celery)</p>
+          <p className="text-xs text-gray-400 mt-2">Ensure all services are running via docker-compose</p>
         </div>
       </div>
     </div>

@@ -116,6 +116,21 @@ async def list_search_queries(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
+@router.put("/search-queries/{query_id}", response_model=SearchQueryOut)
+async def update_search_query(query_id: str, data: SearchQueryCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(SearchQuery).where(SearchQuery.id == query_id))
+    query = result.scalar_one_or_none()
+    if not query:
+        raise HTTPException(404, "Search query not found")
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(query, field, value)
+
+    await db.commit()
+    await db.refresh(query)
+    return query
+
+
 @router.delete("/search-queries/{query_id}")
 async def delete_search_query(query_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(SearchQuery).where(SearchQuery.id == query_id))
