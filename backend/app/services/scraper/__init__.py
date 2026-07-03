@@ -10,13 +10,25 @@ class ScraperService:
             "indeed": IndeedScraper(),
         }
 
+    def build_query(self, title: str, companies: str = "", keywords: str = "", experience_level: str = "") -> str:
+        parts = [title]
+        if keywords:
+            parts.append(keywords)
+        if experience_level:
+            parts.append(experience_level)
+        return " ".join(parts)
+
     async def search_jobs(
         self,
         query: str,
         location: str = "",
         sources: list[str] | None = None,
+        companies: str = "",
+        experience_level: str = "",
+        keywords: str = "",
         max_results: int = 50,
     ) -> list[ScrapedJob]:
+        search_query = self.build_query(query, companies, keywords, experience_level)
         all_jobs = []
         sources = sources or ["linkedin", "indeed"]
 
@@ -24,7 +36,7 @@ class ScraperService:
             scraper = self.scrapers.get(source)
             if scraper:
                 try:
-                    jobs = await scraper.scrape(query, location, max_results // len(sources))
+                    jobs = await scraper.scrape(search_query, location, max_results // len(sources))
                     all_jobs.extend(jobs)
                 except Exception:
                     continue

@@ -80,10 +80,20 @@ async def get_job(job_id: str, db: AsyncSession = Depends(get_db)):
 async def trigger_scrape(
     query: str,
     location: str = "",
+    companies: str = "",
+    experience_level: str = "",
+    keywords: str = "",
     sources: str = "linkedin,indeed",
 ):
     source_list = [s.strip() for s in sources.split(",") if s.strip()]
-    task = scrape_jobs_task.delay(query=query, location=location, sources=source_list)
+    task = scrape_jobs_task.delay(
+        query=query,
+        location=location,
+        companies=companies,
+        experience_level=experience_level,
+        keywords=keywords,
+        sources=source_list,
+    )
     return {"task_id": task.id, "status": "scraping_started", "query": query}
 
 

@@ -20,33 +20,35 @@ def setup_periodic_tasks(sender, **kwargs):
 @celery_app.task
 def run_scheduled_scrape():
     from app.tasks.jobs import scrape_jobs_task
-    from app.database import async_session_factory
+    from app.database import sync_session_factory
     from app.models.user import SearchQuery
     from sqlalchemy import select
-    import asyncio
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    session = sync_session_factory()
     try:
-        async def get_queries():
-            async with async_session_factory() as session:
-                result = await session.execute(
-                    select(SearchQuery).where(SearchQuery.is_active == True)
-                )
-                return result.scalars().all()
+        queries = session.execute(
+            select(SearchQuery).where(SearchQuery.is_active == True)
+        ).scalars().all()
 
-        queries = loop.run_until_complete(get_queries())
         for q in queries:
             titles = [t.strip() for t in q.job_titles.split(",") if t.strip()]
             sources = q.sources.split(",") if q.sources else None
+            companies = q.companies or ""
+            locations = q.locations or ""
+            keywords = q.keywords or ""
+            experience_level = q.experience_level or ""
+
             for title in titles:
                 scrape_jobs_task.delay(
                     query=title,
-                    location=q.locations or "",
+                    location=locations,
+                    companies=companies,
+                    experience_level=experience_level,
+                    keywords=keywords,
                     sources=sources,
                 )
     finally:
-        loop.close()
+        session.close()
 
 
 @celery_app.task

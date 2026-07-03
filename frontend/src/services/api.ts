@@ -24,8 +24,8 @@ export const jobsApi = {
   list: (params?: Record<string, any>) =>
     api.get<PaginatedResponse<Job>>('/jobs', { params }).then(r => r.data),
   get: (id: string) => api.get<Job>(`/jobs/${id}`).then(r => r.data),
-  scrape: (query: string, location?: string, sources?: string) =>
-    api.post('/jobs/scrape', null, { params: { query, location, sources } }).then(r => r.data),
+  scrape: (params: { query: string; location?: string; companies?: string; experience_level?: string; keywords?: string; sources?: string }) =>
+    api.post('/jobs/scrape', null, { params }).then(r => r.data),
   scrapeCareerPage: (url: string, company: string) =>
     api.post('/jobs/scrape-career-page', null, { params: { url, company } }).then(r => r.data),
   stats: () => api.get('/jobs/stats').then(r => r.data),

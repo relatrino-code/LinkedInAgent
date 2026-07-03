@@ -6,6 +6,10 @@ import { jobsApi, applicationsApi, userApi } from '../services/api';
 import FilterBar from '../components/FilterBar';
 import StatusBadge from '../components/StatusBadge';
 
+const initialScrape = {
+  query: '', location: '', companies: '', experience_level: '', keywords: '', sources: 'linkedin,indeed',
+};
+
 export default function Jobs() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -13,8 +17,7 @@ export default function Jobs() {
   const [sourceFilter, setSourceFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showScrape, setShowScrape] = useState(false);
-  const [scrapeQuery, setScrapeQuery] = useState('');
-  const [scrapeLocation, setScrapeLocation] = useState('');
+  const [form, setForm] = useState(initialScrape);
 
   const { data: savedQueries } = useQuery({
     queryKey: ['search-queries'],
@@ -33,16 +36,15 @@ export default function Jobs() {
   });
 
   const scrapeMutation = useMutation({
-    mutationFn: () => jobsApi.scrape(scrapeQuery, scrapeLocation),
+    mutationFn: () => jobsApi.scrape(form),
     onSuccess: () => {
       toast.success('Scraping started!');
       setShowScrape(false);
-      setScrapeQuery('');
-      setScrapeLocation('');
+      setForm(initialScrape);
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['jobs'] });
         queryClient.invalidateQueries({ queryKey: ['job-stats'] });
-      }, 8000);
+      }, 10000);
     },
     onError: (err: any) => toast.error(err?.message || 'Scrape failed'),
   });
@@ -110,8 +112,14 @@ export default function Jobs() {
               <button
                 key={q.id}
                 onClick={() => {
-                  setScrapeQuery(q.job_titles.split(',')[0].trim());
-                  setScrapeLocation(q.locations || '');
+                  setForm({
+                    query: q.job_titles.split(',')[0].trim(),
+                    location: q.locations || '',
+                    companies: q.companies || '',
+                    experience_level: q.experience_level || '',
+                    keywords: q.keywords || '',
+                    sources: q.sources || 'linkedin,indeed',
+                  });
                   setShowScrape(true);
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium hover:bg-blue-100"
@@ -128,30 +136,48 @@ export default function Jobs() {
       {showScrape && (
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
           <h3 className="font-semibold mb-3">Scrape New Jobs</h3>
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             <input
-              type="text"
-              placeholder="Job title (e.g. Software Engineer)"
-              value={scrapeQuery}
-              onChange={e => setScrapeQuery(e.target.value)}
-              className="flex-1 min-w-[200px] px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type="text" placeholder="Job Title *" value={form.query}
+              onChange={e => setForm(p => ({ ...p, query: e.target.value }))}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
-              type="text"
-              placeholder="Location (optional)"
-              value={scrapeLocation}
-              onChange={e => setScrapeLocation(e.target.value)}
-              className="w-48 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              type="text" placeholder="Location" value={form.location}
+              onChange={e => setForm(p => ({ ...p, location: e.target.value }))}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <input
+              type="text" placeholder="Companies (comma separated)" value={form.companies}
+              onChange={e => setForm(p => ({ ...p, companies: e.target.value }))}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="text" placeholder="Keywords" value={form.keywords}
+              onChange={e => setForm(p => ({ ...p, keywords: e.target.value }))}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="text" placeholder="Experience Level (entry, mid, senior)" value={form.experience_level}
+              onChange={e => setForm(p => ({ ...p, experience_level: e.target.value }))}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="text" placeholder="Sources (linkedin, indeed)" value={form.sources}
+              onChange={e => setForm(p => ({ ...p, sources: e.target.value }))}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex gap-2 mt-4">
             <button
               onClick={() => scrapeMutation.mutate()}
-              disabled={!scrapeQuery || scrapeMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
+              disabled={!form.query || scrapeMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
             >
               {scrapeMutation.isPending ? <RefreshCw size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-              Scrape
+              {scrapeMutation.isPending ? 'Scraping...' : 'Start Scrape'}
             </button>
-            <button onClick={() => setShowScrape(false)} className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
+            <button onClick={() => { setShowScrape(false); setForm(initialScrape); }} className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
               Cancel
             </button>
           </div>

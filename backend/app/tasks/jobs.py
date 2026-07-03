@@ -9,12 +9,29 @@ from sqlalchemy import select
 
 
 @celery_app.task(bind=True, max_retries=3)
-def scrape_jobs_task(self, query: str, location: str = "", sources: list[str] | None = None):
+def scrape_jobs_task(
+    self,
+    query: str,
+    location: str = "",
+    companies: str = "",
+    experience_level: str = "",
+    keywords: str = "",
+    sources: list[str] | None = None,
+):
     import asyncio
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        results = loop.run_until_complete(scraper_service.search_jobs(query, location, sources))
+        results = loop.run_until_complete(
+            scraper_service.search_jobs(
+                query=query,
+                location=location,
+                sources=sources,
+                companies=companies,
+                experience_level=experience_level,
+                keywords=keywords,
+            )
+        )
         saved = _save_jobs(results, query)
         return {"scraped": len(results), "new": saved, "duplicates": len(results) - saved, "query": query}
     finally:
