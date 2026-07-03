@@ -15,60 +15,91 @@ Automated job discovery, recruiter outreach, and application tracking system.
 
 ```mermaid
 flowchart TB
-    subgraph User["👤 You"]
-        UI["React Dashboard<br/>localhost:5173"]
+    classDef user fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    classDef backend fill:#f3f4f6,stroke:#6b7280,stroke-width:2px
+    classDef worker fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+    classDef infra fill:#ede9fe,stroke:#8b5cf6,stroke-width:2px
+    classDef db fill:#d1fae5,stroke:#10b981,stroke-width:2px
+    classDef ext fill:#fce7f3,stroke:#ec4899,stroke-width:2px
+
+    subgraph User[" "]
+        direction LR
+        UI(("👤 You<br/>React Dashboard"))
     end
 
-    subgraph Backend["🐍 Backend (FastAPI)"]
-        API["REST API<br/>port 8000"]
-        DB[("PostgreSQL<br/>Jobs, Applications,<br/>Email Threads")]
+    subgraph Backend[" "]
+        API["FastAPI<br/>port 8000"]
     end
 
-    subgraph Workers["⚙️ Celery Workers"]
-        Scraper["🕸️ Job Scraper<br/>LinkedIn, Indeed,<br/>Career Pages"]
-        EmailFinder["📧 Email Finder<br/>Apollo.io API +<br/>Web Scraping"]
-        EmailSender["📨 Email Sender<br/>SMTP (Gmail/Outlook)<br/>+ Tracking Pixels"]
-        EmailTracker["📬 Email Tracker<br/>IMAP - Checks for<br/>Replies Every 15min"]
-        Beat["⏰ Scheduler<br/>Auto-Scrape Every<br/>10 Hours"]
+    subgraph Workers[" "]
+        direction TB
+        Scraper["Step 2: Job Scraper<br/>LinkedIn / Indeed / Career Pages"]
+        EmailFinder["Step 4: Email Finder<br/>Apollo.io / Web Scraping"]
+        EmailSender["Step 5: Email Sender<br/>SMTP + Tracking Pixels"]
+        EmailTracker["Step 6: Email Tracker<br/>IMAP - Checks Inbox"]
     end
 
-    subgraph Infra["🗄️ Infrastructure"]
+    subgraph Storage[" "]
+        DB[("PostgreSQL<br/>Jobs · Applications · Emails")]
         Redis[("Redis<br/>Task Queue")]
-        SMTP[("Gmail/Outlook<br/>SMTP + IMAP")]
-        Apollo[("Apollo.io API<br/>(Optional)")]
     end
 
-    UI <--> API
-    API <--> DB
-    API --> Redis
+    subgraph External[" "]
+        SMTP[("Gmail / Outlook")]
+        Apollo(("Apollo.io API<br/>(Optional)"))
+        JobSites(("LinkedIn / Indeed"))
+    end
+
+    UI <-->|"click / view"| API
+    API <-->|"read / write"| DB
+    API -->|"queue task"| Redis
 
     Redis --> Scraper
     Redis --> EmailFinder
     Redis --> EmailSender
     Redis --> EmailTracker
-    Beat --> Redis
 
-    Scraper -->|"1. Finds jobs"| DB
-    EmailFinder -->|"2. Finds recruiter emails"| DB
-    EmailSender -->|"3. Sends email + CV"| SMTP
-    EmailTracker -->|"4. Checks inbox"| SMTP
-    EmailTracker -->|"5. Stores replies"| DB
-    Apollo --> EmailFinder
+    Scraper -->|"scrapes"| JobSites
+    Scraper -->|"saves jobs"| DB
+    EmailFinder -->|"queries"| Apollo
+    EmailFinder -->|"saves contacts"| DB
+    EmailSender -->|"sends email + CV"| SMTP
+    EmailSender -->|"logs sent"| DB
+    EmailTracker -->|"polls for replies"| SMTP
+    EmailTracker -->|"stores replies"| DB
 
-    style User fill:#e8f4f8,stroke:#333
-    style Backend fill:#f0f0f0,stroke:#333
-    style Workers fill:#fff3e0,stroke:#333
-    style Infra fill:#f3e5f5,stroke:#333
+    linkStyle default stroke:#94a3b8,stroke-width:1.5px
+
+    style User fill:none,stroke:none
+    style Backend fill:none,stroke:none
+    style Workers fill:none,stroke:none
+    style Storage fill:none,stroke:none
+    style External fill:none,stroke:none
+
+    style UI fill:#dbeafe,stroke:#3b82f6,stroke-width:2px,color:#1e40af
+    style API fill:#f3f4f6,stroke:#6b7280,stroke-width:2px,color:#374151
+    style Scraper fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#92400e
+    style EmailFinder fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#92400e
+    style EmailSender fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#92400e
+    style EmailTracker fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#92400e
+    style DB fill:#d1fae5,stroke:#10b981,stroke-width:2px,color:#065f46
+    style Redis fill:#d1fae5,stroke:#10b981,stroke-width:2px,color:#065f46
+    style SMTP fill:#fce7f3,stroke:#ec4899,stroke-width:2px,color:#9d174d
+    style Apollo fill:#fce7f3,stroke:#ec4899,stroke-width:2px,color:#9d174d
+    style JobSites fill:#fce7f3,stroke:#ec4899,stroke-width:2px,color:#9d174d
 ```
 
 ### Flow Summary
 
-1. **You** set search preferences in the Dashboard
-2. **Scraper** finds matching jobs from LinkedIn/Indeed
-3. **Email Finder** hunts for recruiter emails (Apollo.io → web scrape)
-4. **Email Sender** sends your pitch + CV via Gmail/Outlook
-5. **Email Tracker** polls your inbox for replies
-6. **You** get notified and can reply directly from the UI
+| Step | What Happens |
+|------|-------------|
+| **1. Setup** | You fill your profile, upload CV, add search queries in the Dashboard |
+| **2. Scrape** | Celery scrapes LinkedIn/Indeed for matching jobs → saved to PostgreSQL |
+| **3. Apply** | You click "Apply" on a job → creates an application record |
+| **4. Find Emails** | Celery searches Apollo.io / company websites for recruiter emails |
+| **5. Send Email** | You write your pitch → Celery sends it via Gmail with tracking pixels |
+| **6. Track** | Celery polls your Gmail inbox every hour for replies → stores them |
+| **7. Reply** | You read the reply in the UI and respond directly |
 
 ### File Structure
 ├── backend/                     # FastAPI + Celery
