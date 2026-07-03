@@ -1,6 +1,8 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.egg
+*.whl
 .venv/
 venv/
 env/
@@ -13,3 +15,11 @@ uploads/
 __pypackages__/
 .DS_Store
 *.log
+*.swp
+*.swo
+.idea/
+.vscode/
+.coverage
+htmlcov/
+.pytest_cache/
+backend/package-lock.json
