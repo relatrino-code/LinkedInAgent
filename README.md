@@ -124,6 +124,20 @@ Generate one with:
 openssl rand -hex 32
 ```
 
+## What Each Service Does (Layman Terms)
+
+The system runs **5 things** at the same time. Here's what each one does:
+
+| Service | It's like... | What it actually does |
+|---------|-------------|----------------------|
+| **Uvicorn** (backend) | 🧑‍💼 **The Receptionist** | Sits at `localhost:8000`, waits for your clicks in the browser, talks to the database, and gives instructions to Celery. You always need this running. |
+| **Celery Worker** | 🧑‍🔧 **The Handyman** | Does the heavy lifting — scraping LinkedIn, sending emails, checking your inbox for replies. Without it, nothing happens in the background. |
+| **Celery Beat** | ⏰ **The Alarm Clock** | Tells the Handyman *when* to work. "Hey, it's been 10 hours — scrape again!" Optional — without it, you click "Scrape" manually. |
+| **PostgreSQL** (db) | 📁 **The Filing Cabinet** | Stores everything — jobs, applications, emails, your profile. Keeps data even if you restart. |
+| **Redis** | 📋 **The To-Do List** | A temporary scratchpad where the Receptionist writes tasks for the Handyman. "Scrape this job", "Send this email", etc. |
+
+**In short:** You need Uvicorn + PostgreSQL + Redis + Celery Worker for full functionality. Celery Beat is optional (auto-scheduling).
+
 ## Quick Start
 
 ### 1. Clone and configure
