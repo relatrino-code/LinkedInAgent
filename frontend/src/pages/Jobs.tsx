@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw, ExternalLink, Send, Bookmark, X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -19,6 +19,9 @@ export default function Jobs() {
   const [companyFilter, setCompanyFilter] = useState('');
   const [showScrape, setShowScrape] = useState(false);
   const [form, setForm] = useState(initialScrape);
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [taskStatus, setTaskStatus] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval>>();
 
   const { data: savedQueries } = useQuery({
     queryKey: ['search-queries'],
@@ -39,17 +42,42 @@ export default function Jobs() {
 
   const scrapeMutation = useMutation({
     mutationFn: () => jobsApi.scrape(form),
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast.success('Scraping started!');
+      setTaskId(res.task_id);
+      setTaskStatus('PENDING');
       setShowScrape(false);
       setForm(initialScrape);
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['jobs'] });
-        queryClient.invalidateQueries({ queryKey: ['job-stats'] });
-      }, 10000);
     },
     onError: (err: any) => toast.error(err?.message || 'Scrape failed'),
   });
+
+  useEffect(() => {
+    if (!taskId) return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await jobsApi.scrapeStatus(taskId);
+        setTaskStatus(res.status);
+        if (res.status === 'SUCCESS' || res.status === 'FAILURE') {
+          clearInterval(pollRef.current);
+          if (res.status === 'SUCCESS') {
+            toast.success(`Scraped ${res.result?.scraped || 0} jobs (${res.result?.new || 0} new)`);
+          } else {
+            toast.error('Scrape failed');
+          }
+          setTaskId(null);
+          setTaskStatus(null);
+          queryClient.invalidateQueries({ queryKey: ['jobs'] });
+          queryClient.invalidateQueries({ queryKey: ['job-stats'] });
+        }
+      } catch {
+        clearInterval(pollRef.current);
+        setTaskId(null);
+        setTaskStatus(null);
+      }
+    }, 2000);
+    return () => clearInterval(pollRef.current);
+  }, [taskId, queryClient]);
 
   const createAppMutation = useMutation({
     mutationFn: (jobId: string) => applicationsApi.create({ job_id: jobId }),
@@ -63,17 +91,43 @@ export default function Jobs() {
   const activeFilters: string[] = [];
   if (companyFilter) activeFilters.push(`Company: ${companyFilter}`);
 
+  const progressLabel = taskStatus === 'PENDING' ? 'Queued...'
+    : taskStatus === 'STARTED' ? 'Scraping jobs...'
+    : taskStatus === 'SUCCESS' ? 'Complete!'
+    : taskStatus === 'FAILURE' ? 'Failed'
+    : '';
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Jobs</h2>
         <button
           onClick={() => setShowScrape(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          disabled={!!taskId}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
         >
           <Plus size={16} /> Scrape Jobs
         </button>
       </div>
+
+      {taskId && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+          <div className="flex items-center gap-3 mb-2">
+            <RefreshCw size={16} className="animate-spin text-blue-600" />
+            <span className="text-sm font-medium text-gray-700">{progressLabel}</span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-500 ${
+                taskStatus === 'SUCCESS' ? 'bg-green-500 w-full'
+                : taskStatus === 'FAILURE' ? 'bg-red-500 w-full'
+                : 'bg-blue-500 animate-pulse'
+              }`}
+              style={{ width: taskStatus === 'SUCCESS' || taskStatus === 'FAILURE' ? '100%' : '60%' }}
+            />
+          </div>
+        </div>
+      )}
 
       <FilterBar
         onSearch={setSearch}
@@ -196,7 +250,7 @@ export default function Jobs() {
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
             >
               {scrapeMutation.isPending ? <RefreshCw size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-              {scrapeMutation.isPending ? 'Scraping...' : 'Start Scrape'}
+              {scrapeMutation.isPending ? 'Starting...' : 'Start Scrape'}
             </button>
             <button onClick={() => { setShowScrape(false); setForm(initialScrape); }} className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
               Cancel

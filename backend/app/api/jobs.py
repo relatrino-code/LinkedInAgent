@@ -10,6 +10,8 @@ from app.models.application import JobApplication
 from app.schemas.job import JobOut, JobDetail, JobFilterParams
 from app.services.scraper import scraper_service
 from app.tasks.jobs import scrape_jobs_task
+from celery.result import AsyncResult
+from app.tasks.celery_app import celery_app
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -101,6 +103,16 @@ async def trigger_scrape(
 async def scrape_career_page(url: str, company: str):
     jobs = await scraper_service.scrape_career_page(url)
     return {"scraped": len(jobs), "company": company, "jobs": jobs}
+
+
+@router.get("/scrape-status/{task_id}")
+async def get_scrape_status(task_id: str):
+    result = AsyncResult(task_id, app=celery_app)
+    return {
+        "task_id": task_id,
+        "status": result.status,
+        "result": result.result if result.ready() else None,
+    }
 
 
 @router.get("/stats")

@@ -30,6 +30,7 @@ export const jobsApi = {
   scrapeCareerPage: (url: string, company: string) =>
     api.post('/jobs/scrape-career-page', null, { params: { url, company } }).then(r => r.data),
   stats: () => api.get('/jobs/stats').then(r => r.data),
+  scrapeStatus: (taskId: string) => api.get(`/jobs/scrape-status/${taskId}`).then(r => r.data),
 };
 
 export const applicationsApi = {
