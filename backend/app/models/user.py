@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, Boolean, JSON
+from sqlalchemy import String, Text, DateTime, Boolean, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -33,7 +33,7 @@ class SearchQuery(Base):
     __tablename__ = "search_queries"
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[str] = mapped_column(UUID(as_uuid=True), nullable=False)
+    user_id: Mapped[str] = mapped_column(UUID(as_uuid=True), ForeignKey("user_profiles.id"), nullable=False)
     job_titles: Mapped[str] = mapped_column(Text)
     companies: Mapped[str | None] = mapped_column(Text)
     locations: Mapped[str | None] = mapped_column(Text)
