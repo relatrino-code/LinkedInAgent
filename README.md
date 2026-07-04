@@ -5,8 +5,8 @@ Automated job discovery, recruiter outreach, and application tracking system.
 ## Features
 
 - **Job Scraping** — Scrapes jobs from LinkedIn, Indeed, and company career pages based on your search queries
-- **Recruiter Email Discovery** — Finds recruiter/hiring manager emails via Apollo.io API (with web scraping fallback)
-- **Automated Outreach** — Sends personalized emails with your CV attached via SMTP (Gmail/Outlook)
+- **Recruiter Email Discovery** — Finds HR/recruiting contacts via Apollo.io API + LinkedIn People scraping. Multiple contacts per application, select who to email
+- **Automated Outreach** — Sends personalized emails with your CV attached via SMTP (Gmail/Outlook). Default templates with `{{company}}` `{{role}}` placeholders in Settings
 - **Email Tracking** — Tracks opens, clicks, and replies using tracking pixels + IMAP polling
 - **Reply Management** — View email threads and send replies directly from the dashboard
 - **Dashboard UI** — Full application lifecycle management with filters, search, status tracking, and timeline
@@ -34,38 +34,48 @@ flowchart LR
         S -->|"stores"| DB1
     end
 
-    subgraph ApplyPhase["PHASE 3: APPLY"]
+    subgraph ApplyPhase["PHASE 3: FIND CONTACTS"]
         direction TB
-        A(["📝 Celery: Email Finder<br/>Apollo.io + Web Scrape"]):::box
-        AP(["🔌 Apollo.io API"]):::box
-        DB2[("💾 PostgreSQL")]:::box
+        A(["📝 Email Finder<br/>Apollo for HR/Recruiters"]):::box
+        AP(["🔌 Apollo.io API<br/>+ LinkedIn People Scrape"]):::box
+        DB2[("💾 PostgreSQL<br/>Multiple Contacts")]:::box
         A <--> AP
         A -->|"saves contacts"| DB2
     end
 
-    subgraph OutreachPhase["PHASE 4: OUTREACH"]
+    subgraph SelectPhase["PHASE 4: SELECT & WRITE"]
+        direction TB
+        S2(["✅ You Select Contacts<br/>Subject/Body from Template"]):::box
+        TMPL(["📄 Default Template<br/>Settings → {{company}} {{role}}"]):::box
+        DB3[("💾 PostgreSQL")]:::box
+        S2 -->|"fills from"| TMPL
+        S2 -->|"sends to selected"| DB3
+    end
+
+    subgraph OutreachPhase["PHASE 5: OUTREACH"]
         direction TB
         E(["📨 Celery: Email Sender<br/>SMTP + Tracking Pixels"]):::box
         GM(["📧 Gmail / Outlook"]):::box
-        DB3[("💾 PostgreSQL")]:::box
+        DB4[("💾 PostgreSQL")]:::box
         E -->|"sends CV"| GM
-        E -->|"logs sent"| DB3
+        E -->|"logs sent"| DB4
     end
 
-    subgraph TrackPhase["PHASE 5: TRACK & REPLY"]
+    subgraph TrackPhase["PHASE 6: TRACK & REPLY"]
         direction TB
         T(["📬 Celery: Email Tracker<br/>IMAP - Checks Replies"]):::box
         GM2(["📧 Gmail / Outlook"]):::box
-        DB4[("💾 PostgreSQL")]:::box
+        DB5[("💾 PostgreSQL")]:::box
         R(["👤 You Reply from UI"]):::box
         T <-->|"polls inbox"| GM2
-        T -->|"stores replies"| DB4
-        DB4 --> R
+        T -->|"stores replies"| DB5
+        DB5 --> R
     end
 
     Q -->|"auto-scrape"| S
     DB1 --> A
-    DB2 --> E
+    DB2 --> S2
+    DB3 --> E
     GM2 -.->|"hourly check"| T
 
     %% edge styling: thicker, darker arrows
@@ -76,13 +86,14 @@ flowchart LR
 
 | Step | What Happens |
 |------|-------------|
-| **1. Setup** | You fill your profile, upload CV, add search queries in the Dashboard |
+| **1. Setup** | Fill profile, upload CV, add search queries, set email templates |
 | **2. Scrape** | Celery scrapes LinkedIn/Indeed for matching jobs → saved to PostgreSQL |
-| **3. Apply** | You click "Apply" on a job → creates an application record |
-| **4. Find Emails** | Celery searches Apollo.io / company websites for recruiter emails |
-| **5. Send Email** | You write your pitch → Celery sends it via Gmail with tracking pixels |
-| **6. Track** | Celery polls your Gmail inbox every hour for replies → stores them |
-| **7. Reply** | You read the reply in the UI and respond directly |
+| **3. Apply** | Click "Apply" on a job → creates an application record |
+| **4. Find Contacts** | Searches Apollo + LinkedIn People for HR/Recruiting people → multiple contacts saved |
+| **5. Select & Write** | You pick which contacts to email; subject/body auto-filled from Settings template |
+| **6. Send Email** | Celery sends to all selected contacts via Gmail with tracking pixels + CV |
+| **7. Track** | Celery polls your inbox every hour for replies |
+| **8. Reply** | Read replies in the UI and respond directly |
 
 ### File Structure
 ├── backend/                     # FastAPI + Celery
@@ -239,7 +250,8 @@ Here's the complete flow from setup to getting replies:
 1. Fill in **your profile** — name, email, skills, LinkedIn URL
 2. Upload your **resume/CV** (PDF)
 3. Write a **cover letter template** (use `{{company}}` and `{{role}}` as placeholders)
-4. Add **search queries** — job titles, locations, companies you're targeting
+4. Set **email defaults** — default subject and body templates with `{{company}}` `{{role}}` placeholders (leave blank when sending to auto-fill)
+5. Add **search queries** — job titles, locations, companies you're targeting
 
 ### Phase 2: Discover Jobs (Jobs page)
 
@@ -254,17 +266,21 @@ Here's the complete flow from setup to getting replies:
 2. Go to **Applications** tab to see all your applications
 3. Click **"View"** on an application to open it
 
-### Phase 4: Find Recruiter Emails (Application Detail page)
+### Phase 4: Find Recruiter Contacts (Application Detail page)
 
-1. Click **"Find Emails"** — searches Apollo.io API (or scrapes the company website) for recruiter/hiring manager emails
-2. The best match is saved as the contact for this application
+1. Click **"Find Contacts"** — searches Apollo.io API for HR/Recruiting/Talent Acquisition people at the company
+2. Falls back to **LinkedIn People scraping** if Apollo isn't configured
+3. All found contacts appear in a list with their name, title, email, confidence score
+4. Click on a contact to **select** it (checkmark appears)
+5. Select **one or multiple** contacts to email
 
 ### Phase 5: Send Outreach (Application Detail page)
 
-1. Write a **subject line** and **email body** (paste your cover letter)
-2. Your resume is automatically attached
-3. Click **"Send Email"** — it goes out via your Gmail/Outlook SMTP
-4. The email includes a **tracking pixel** (knows when it's opened) and **tracked links**
+1. Click **"Send Email"** — if you didn't set defaults in Settings, write a **subject** and **body**
+2. Your **default templates** from Settings auto-fill if left blank (with `{{company}}` and `{{role}}` replaced)
+3. Email goes to **all selected contacts** simultaneously
+4. Your resume is automatically attached
+5. Each email includes a **tracking pixel** (knows when it's opened) and **tracked links**
 
 ### Phase 6: Track & Reply
 
