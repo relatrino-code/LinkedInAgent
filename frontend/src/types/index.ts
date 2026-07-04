@@ -12,6 +12,8 @@ export interface UserProfile {
   resume_path?: string;
   cover_letter_template?: string;
   preferences?: Record<string, any>;
+  email_subject_template?: string;
+  email_body_template?: string;
   created_at: string;
   updated_at: string;
 }
@@ -68,6 +70,19 @@ export interface Application {
   created_at: string;
   updated_at: string;
   job?: { title: string; company: string };
+}
+
+export interface Contact {
+  id: string;
+  application_id: string;
+  name: string;
+  title?: string;
+  email?: string;
+  linkedin_url?: string;
+  source?: string;
+  confidence: number;
+  selected: boolean;
+  created_at: string;
 }
 
 export interface EmailThread {

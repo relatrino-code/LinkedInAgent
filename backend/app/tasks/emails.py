@@ -13,11 +13,12 @@ from sqlalchemy import select
 def send_application_email_task(
     self,
     application_id: str,
-    subject: str,
-    body: str,
+    to_email: str | None = None,
+    subject: str = "",
+    body: str = "",
     attachment_path: str | None = None,
 ):
-    return _send_email(application_id, subject, body, attachment_path)
+    return _send_email(application_id, to_email, subject, body, attachment_path)
 
 
 @celery_app.task(bind=True)
@@ -27,18 +28,23 @@ def check_email_replies_task(self):
 
 def _send_email(
     application_id: str,
-    subject: str,
-    body: str,
+    to_email: str | None = None,
+    subject: str = "",
+    body: str = "",
     attachment_path: str | None = None,
 ) -> dict:
     session = sync_session_factory()
     try:
         app = session.get(JobApplication, application_id)
-        if not app or not app.contact_email:
-            return {"success": False, "error": "Application or email not found"}
+        if not app:
+            return {"success": False, "error": "Application not found"}
+
+        email = to_email or app.contact_email
+        if not email:
+            return {"success": False, "error": "No contact email"}
 
         result = email_sender_service.send_email_sync(
-            to_email=app.contact_email,
+            to_email=email,
             subject=subject,
             body=body,
             attachment_path=attachment_path,

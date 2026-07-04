@@ -3,6 +3,26 @@ from typing import Optional
 from datetime import datetime
 
 
+class ContactOut(BaseModel):
+    id: str
+    application_id: str
+    name: str
+    title: Optional[str] = None
+    email: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    source: Optional[str] = None
+    confidence: float = 0.0
+    selected: bool = False
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ContactSelect(BaseModel):
+    contact_ids: list[str]
+
+
 class ApplicationOut(BaseModel):
     id: str
     job_id: str

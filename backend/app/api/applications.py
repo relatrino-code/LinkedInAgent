@@ -8,10 +8,10 @@ import uuid
 from app.database import get_db
 from app.models.job import Job
 from app.models.user import UserProfile
-from app.models.application import JobApplication, EmailThread, EmailStatus, ApplicationStatus
+from app.models.application import JobApplication, EmailThread, EmailStatus, ApplicationStatus, Contact
 from app.schemas.application import (
     ApplicationCreate, ApplicationUpdate, ApplicationOut, ApplicationDetail,
-    EmailSendRequest, EmailReplyRequest, EmailThreadOut,
+    EmailSendRequest, EmailReplyRequest, EmailThreadOut, ContactOut, ContactSelect,
 )
 from app.tasks.emails import send_application_email_task
 from app.services.email_sender.service import email_sender_service
@@ -135,22 +135,71 @@ async def find_emails_for_application(app_id: str, db: AsyncSession = Depends(ge
     if not job:
         raise HTTPException(404, "Job not found")
 
-    emails = await email_finder_service.find_emails(
+    contacts = await email_finder_service.find_emails(
         company_name=job.company,
         company_domain=job.company_website,
         job_title=job.title,
+        job_url=job.job_url,
     )
 
-    if emails:
-        best = emails[0]
-        app.contact_email = best["email"]
+    saved_contacts = []
+    for c in contacts:
+        existing = await db.execute(
+            select(Contact).where(
+                Contact.application_id == app_id,
+                Contact.email == c.get("email", ""),
+                Contact.linkedin_url == c.get("linkedin_url"),
+            )
+        )
+        if existing.scalar_one_or_none():
+            continue
+        contact = Contact(
+            id=str(uuid.uuid4()),
+            application_id=app_id,
+            name=c["name"],
+            title=c.get("title"),
+            email=c.get("email") or None,
+            linkedin_url=c.get("linkedin_url"),
+            source=c.get("source"),
+            confidence=c.get("confidence", 0),
+        )
+        db.add(contact)
+        saved_contacts.append(contact)
+
+    if saved_contacts:
+        app.application_status = ApplicationStatus.EMAIL_FOUND
+    if contacts and not app.contact_email:
+        best = contacts[0]
+        app.contact_email = best.get("email") or None
         app.contact_name = best["name"]
         app.contact_title = best.get("title")
         app.contact_linkedin = best.get("linkedin_url")
-        app.application_status = ApplicationStatus.EMAIL_FOUND
-        await db.commit()
 
-    return {"found": len(emails), "emails": emails}
+    await db.commit()
+
+    result = [ContactOut.model_validate(c) for c in saved_contacts]
+    return {"found": len(saved_contacts), "contacts": result}
+
+
+@router.get("/{app_id}/contacts", response_model=list[ContactOut])
+async def list_contacts(app_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Contact).where(Contact.application_id == app_id).order_by(Contact.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.post("/{app_id}/select-contacts")
+async def select_contacts(app_id: str, data: ContactSelect, db: AsyncSession = Depends(get_db)):
+    await db.execute(
+        select(Contact).where(Contact.application_id == app_id).update({Contact.selected: False})
+    )
+    if data.contact_ids:
+        await db.execute(
+            select(Contact).where(Contact.id.in_(data.contact_ids)).update({Contact.selected: True})
+        )
+    await db.commit()
+    return {"selected": len(data.contact_ids)}
 
 
 @router.post("/{app_id}/send-email")
@@ -159,16 +208,58 @@ async def send_application_email(app_id: str, data: EmailSendRequest, db: AsyncS
     if not app:
         raise HTTPException(404, "Application not found")
 
+    job = await db.get(Job, app.job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+
     profile_result = await db.execute(select(UserProfile).limit(1))
     profile = profile_result.scalar_one_or_none()
 
-    task = send_application_email_task.delay(
-        application_id=app_id,
-        subject=data.subject,
-        body=data.body,
-        attachment_path=profile.resume_path if profile else None,
+    subject = data.subject
+    body = data.body
+
+    if not subject or not body:
+        if profile:
+            if not subject and profile.email_subject_template:
+                subject = profile.email_subject_template.replace("{{company}}", job.company).replace("{{role}}", job.title)
+            if not body and profile.email_body_template:
+                body = profile.email_body_template.replace("{{company}}", job.company).replace("{{role}}", job.title)
+            if not subject and profile.cover_letter_template:
+                subject = f"Application for {job.title} at {job.company}"
+
+    if not subject:
+        subject = f"Application for {job.title} at {job.company}"
+    if not body:
+        body = f"Hi, I'm interested in the {job.title} position at {job.company}. Please find my CV attached."
+
+    contacts_result = await db.execute(
+        select(Contact).where(Contact.application_id == app_id, Contact.selected == True)
     )
-    return {"task_id": task.id, "status": "queued"}
+    selected_contacts = contacts_result.scalars().all()
+
+    if not selected_contacts:
+        if app.contact_email:
+            selected_contacts = [{"id": None, "email": app.contact_email}]
+
+    tasks = []
+    for contact in selected_contacts:
+        to_email = contact.get("email") if isinstance(contact, dict) else contact.email
+        if not to_email:
+            continue
+        task = send_application_email_task.delay(
+            application_id=app_id,
+            to_email=to_email,
+            subject=subject,
+            body=body,
+            attachment_path=profile.resume_path if profile else None,
+        )
+        cid = contact.get("id") if isinstance(contact, dict) else contact.id
+        tasks.append({"contact_id": cid, "task_id": task.id, "email": to_email})
+
+    if not tasks:
+        raise HTTPException(400, "No contacts with email selected")
+
+    return {"tasks": tasks, "status": "queued"}
 
 
 @router.get("/{app_id}/threads", response_model=list[EmailThreadOut])

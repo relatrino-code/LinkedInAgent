@@ -56,6 +56,7 @@ class JobApplication(Base):
 
     job: Mapped["Job"] = relationship(back_populates="applications")
     email_threads: Mapped[list["EmailThread"]] = relationship(back_populates="application", cascade="all, delete-orphan")
+    contacts: Mapped[list["Contact"]] = relationship(back_populates="application", cascade="all, delete-orphan")
 
 
 class EmailThread(Base):
@@ -74,3 +75,20 @@ class EmailThread(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     application: Mapped["JobApplication"] = relationship(back_populates="email_threads")
+
+
+class Contact(Base):
+    __tablename__ = "contacts"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
+    application_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("job_applications.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(255))
+    title: Mapped[str | None] = mapped_column(String(255))
+    email: Mapped[str | None] = mapped_column(String(255))
+    linkedin_url: Mapped[str | None] = mapped_column(String(500))
+    source: Mapped[str | None] = mapped_column(String(50))
+    confidence: Mapped[float | None] = mapped_column(default=0.0)
+    selected: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    application: Mapped["JobApplication"] = relationship(back_populates="contacts")

@@ -14,6 +14,8 @@ class UserProfileCreate(BaseModel):
     years_experience: Optional[int] = 0
     skills: Optional[str] = None
     cover_letter_template: Optional[str] = None
+    email_subject_template: Optional[str] = None
+    email_body_template: Optional[str] = None
     preferences: Optional[dict] = None
 
 
@@ -27,6 +29,8 @@ class UserProfileUpdate(BaseModel):
     years_experience: Optional[int] = None
     skills: Optional[str] = None
     cover_letter_template: Optional[str] = None
+    email_subject_template: Optional[str] = None
+    email_body_template: Optional[str] = None
     preferences: Optional[dict] = None
 
 
@@ -43,6 +47,8 @@ class UserProfileOut(BaseModel):
     skills: Optional[str] = None
     resume_path: Optional[str] = None
     cover_letter_template: Optional[str] = None
+    email_subject_template: Optional[str] = None
+    email_body_template: Optional[str] = None
     preferences: Optional[dict] = None
     created_at: datetime
     updated_at: datetime

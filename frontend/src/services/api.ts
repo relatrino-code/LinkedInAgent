@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type {
   UserProfile, SearchQuery, Job, Application,
-  EmailThread, PaginatedResponse, DashboardStats,
+  EmailThread, PaginatedResponse, DashboardStats, Contact,
 } from '../types';
 
 const api = axios.create({ baseURL: '/api' });
@@ -45,5 +45,8 @@ export const applicationsApi = {
   getThreads: (id: string) => api.get<EmailThread[]>(`/applications/${id}/threads`).then(r => r.data),
   reply: (id: string, data: { thread_id: string; body: string }) =>
     api.post(`/applications/${id}/reply`, data).then(r => r.data),
+  getContacts: (id: string) => api.get<Contact[]>(`/applications/${id}/contacts`).then(r => r.data),
+  selectContacts: (id: string, contact_ids: string[]) =>
+    api.post(`/applications/${id}/select-contacts`, { contact_ids }).then(r => r.data),
   stats: () => api.get('/applications/stats').then(r => r.data),
 };

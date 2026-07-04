@@ -22,6 +22,8 @@ class UserProfile(Base):
     skills: Mapped[str | None] = mapped_column(Text)
     resume_path: Mapped[str | None] = mapped_column(String(500))
     cover_letter_template: Mapped[str | None] = mapped_column(Text)
+    email_subject_template: Mapped[str | None] = mapped_column(String(500))
+    email_body_template: Mapped[str | None] = mapped_column(Text)
     preferences: Mapped[dict | None] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

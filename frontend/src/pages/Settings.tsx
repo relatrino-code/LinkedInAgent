@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save, Upload, Plus, Trash2, Pencil } from 'lucide-react';
+import { Save, Upload, Plus, Trash2, Pencil, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { userApi } from '../services/api';
 
@@ -18,6 +18,8 @@ export default function Settings() {
     name: '', email: '', phone: '', linkedin_url: '', portfolio_url: '',
     current_company: '', current_title: '', years_experience: 0, skills: '',
     cover_letter_template: '',
+    email_subject_template: '',
+    email_body_template: '',
   });
 
   const [queryForm, setQueryForm] = useState(emptyQuery);
@@ -36,6 +38,8 @@ export default function Settings() {
         years_experience: profile.years_experience || 0,
         skills: profile.skills || '',
         cover_letter_template: profile.cover_letter_template || '',
+        email_subject_template: profile.email_subject_template || '',
+        email_body_template: profile.email_body_template || '',
       });
     }
   }, [profile]);
@@ -129,6 +133,50 @@ export default function Settings() {
 
         <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="mt-6 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
           <Save size={14} /> {saveMutation.isPending ? 'Saving...' : 'Save Profile'}
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <Mail size={16} /> Email Defaults
+        </h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Set default subject and body for emails. Use {'{{company}}'} and {'{{role}}'} as placeholders.
+          When sending from the Application detail page, leave subject/body blank to use defaults.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Default Subject</label>
+            <input
+              placeholder="e.g. Application for {{role}} at {{company}}"
+              value={form.email_subject_template}
+              onChange={e => setForm(p => ({ ...p, email_subject_template: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+            />
+            {form.email_subject_template && (
+              <p className="text-xs text-green-600 mt-1">
+                Preview: {form.email_subject_template.replace('{{company}}', 'Google').replace('{{role}}', 'Software Engineer')}
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Default Body</label>
+            <textarea
+              placeholder="e.g. Hi, I'm interested in the {{role}} position at {{company}}. Please find my CV attached."
+              value={form.email_body_template}
+              onChange={e => setForm(p => ({ ...p, email_body_template: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              rows={5}
+            />
+            {form.email_body_template && (
+              <p className="text-xs text-green-600 mt-1">
+                Preview: {form.email_body_template.replace('{{company}}', 'Google').replace('{{role}}', 'Software Engineer')}
+              </p>
+            )}
+          </div>
+        </div>
+        <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="mt-4 flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700 disabled:opacity-50">
+          <Save size={14} /> Save Email Templates
         </button>
       </div>
 
